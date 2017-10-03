@@ -5,7 +5,7 @@ const hostname = '127.0.0.1';
 const port = 3000;
 
 
-class article
+class Article
 {
     constructor(id, title="", text="", author="", comments=[])
     {
@@ -18,7 +18,7 @@ class article
     }
 }
 
-class comment
+class Comment
 {
     constructor(id, articleId, text="", author="")
     {
@@ -38,7 +38,8 @@ const handlers =
     '/api/article/create': articleCreate,
     '/api/article/update': articleUpdate,
     '/api/article/delete': articleDelete,
-    '/api/comments/create': commentsCreate
+    '/api/comments/create': commentsCreate,
+    '/api/comments/delete': commentsDelete
 };
 
 
@@ -99,40 +100,104 @@ function articleRead(req, res, payload, cb)
 function articleCreate(req, res, payload, cb)
 {
     const articles = JSON.parse(ALL_ARTICLES);
-    const art = new article(articles.length + 1, payload.title, payload.text, payload.author, []);
+    const art = new Article(articles[articles.length > 0 ? articles.length - 1: 0].id + 1, payload.title, payload.text, payload.author, []);
     articles.push(art);
 
-    fs.writeFile('articles.json', JSON.stringify(articles), ()=> {});
-
+    ALL_ARTICLES = JSON.stringify(articles);
+    fs.writeFile('articles.json', ALL_ARTICLES, ()=> {});
     cb(null, JSON.stringify(art));
 }
 
 function articleUpdate(req, res, payload, cb)
 {
     const articles = JSON.parse(ALL_ARTICLES);
-    articles[payload.id].title=payload.title;
-    articles[payload.id].text=payload.text;
-    articles[payload.id].author=payload.author;
-
-    fs.writeFile('articles.json', JSON.stringify(articles), ()=> {});
-
-    cb(null, JSON.stringify(articles));
+    for(let iter of articles)
+    {
+        if(iter.id === payload.id)
+        {
+            iter.title=payload.title;
+            iter.text=payload.text;
+            iter.author=payload.author;
+        }
+    }
+    ALL_ARTICLES = JSON.stringify(articles);
+    fs.writeFile('articles.json', ALL_ARTICLES, ()=> {});
+    cb(null, "OK");
 }
 
 function articleDelete(req, res, payload, cb)
 {
 
+    const articles = JSON.parse(ALL_ARTICLES);
+    const newArticles = [];
+    for(let iter of articles)
+    {
+        if(iter.id !== payload.id)
+        {
+            newArticles.push(iter);
+        }
+    }
+    ALL_ARTICLES = JSON.stringify(articles);
+    fs.writeFile('articles.json', ALL_ARTICLES, ()=> {});
+    cb(null, "OK");
 }
 
 function commentsCreate(req, res, payload, cb)
 {
+    const articles = JSON.parse(ALL_ARTICLES);
 
+    for(let iter of articles)
+    {
+        if(iter.id === payload.articleId)
+        {
+            iter.comments.push(new Comment(iter.comments[iter.comments.length > 0? iter.comments.length - 1: 0] + 1,
+                payload.articleId,
+                payload.text,
+                payload.author));
+        }
+    }
+
+    console.log("aa");
+    ALL_ARTICLES = JSON.stringify(articles);
+    fs.writeFile('articles.json', ALL_ARTICLES, ()=> {});
+    cb(null, "OK");
+}
+
+function commentsDelete(req, res, payload, cb)
+{
+    const articles = JSON.parse(ALL_ARTICLES);
+
+    for(let iter of articles)
+    {
+        if(iter.id === payload.articleId)
+        {
+            let newComments = [];
+            for(subIter of iter.comments)
+            {
+                if(subIter.id !== payload.id)
+                {
+                    newComments.push(subIter);
+                }
+            }
+            iter.comments = newComments;
+        }
+    }
+
+    ALL_ARTICLES = JSON.stringify(articles);
+    fs.writeFile('articles.json', ALL_ARTICLES, ()=> {});
+    cb(null, "OK");
 }
 
 function notFound(req, res, payload, cb)
 {
     cb({ code: 404, message: 'Not found'});
 }
+
+function wrongId(req, res, payload, cb)
+{
+    cb({ code: 888, message: 'Wrong id'});
+}
+
 
 function parseBodyJson(req, cb)
 {
