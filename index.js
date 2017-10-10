@@ -48,25 +48,36 @@ var ALL_ARTICLES = fs.readFileSync('articles.json','utf-8').toString().replace(/
 
 const server = http.createServer((req, res) =>
 {
-    parseBodyJson(req, (err, payload) =>
+    try
     {
-        const handler = getHandler(req.url);
+        parseBodyJson(req, (err, payload) =>
+        {
+            const handler = getHandler(req.url);
+            fs.appendFile('logs.log',
+                          `Время запроса: ${(new Date()).toDateString()}\n`+
+                          `URL: ${req.url}\n\n\n\n`);
 
-        handler(req, res, payload, (err, result) => {
-            if (err)
+            handler(req, res, payload, (err, result) =>
             {
-                res.statusCode = err.code;
+                if (err)
+                {
+                    res.statusCode = err.code;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify(err));
+
+                    return;
+                }
+
+                res.statusCode = 200;
                 res.setHeader('Content-Type', 'application/json');
-                res.end( JSON.stringify(err) );
-
-                return;
-            }
-
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end( JSON.stringify(result) );
+                res.end(JSON.stringify(result));
+            });
         });
-    });
+    }
+    catch (err)
+    {
+        res.end("Ошибка при передаче параметров");
+    }
 });
 
 server.listen(port, hostname, () =>
@@ -110,6 +121,7 @@ function getHandler(url)
         payload.limit = !payload.limit? 10: payload.limit;
         payload.includeDeps = !payload.includeDeps? false: payload.includeDeps;
 
+
         const answer = [];
         for(let i = (payload.limit - 1) * payload.page - 1; i<articles.length && i<payload.limit * payload.page;i++)
         {
@@ -117,7 +129,11 @@ function getHandler(url)
             answer.push(articles[i]);
         }
 
-        a = {items: answer, meta: {page:payload.page, pages:(articles.length / payload.limit + 1), count:articles.length, limit:payload.limit}};
+
+        a = {items: answer, meta: {page:payload.page,
+                                   pages:Math.trunc((articles.length / payload.limit + 1)),
+                                   count:Math.trunc(articles.length),
+                                   limit:Math.trunc(payload.limit)}};
         cb({code: 200, message: a});
     }
 
@@ -131,7 +147,7 @@ function getHandler(url)
     function articleCreate(req, res, payload, cb)
     {
         const articles = JSON.parse(ALL_ARTICLES);
-        const art = new Article(articles[articles.length > 0 ? articles.length - 1 : 0].id + 1,
+        const art = new Article(!articles.length? 0: articles[articles.length > 0 ? articles.length - 1 : 0].id + 1,
                                 payload.title,
                                 payload.text,
                                 payload.author, []);
@@ -171,9 +187,9 @@ function getHandler(url)
                 newArticles.push(iter);
             }
         }
-        ALL_ARTICLES = JSON.stringify(articles);
+        ALL_ARTICLES = JSON.stringify(newArticles);
         fs.writeFile('articles.json', ALL_ARTICLES, () => {});
-        cb(null, "OK");
+        cb(null, "DELETE");
     }
 
     function commentsCreate(req, res, payload, cb)
@@ -235,9 +251,9 @@ function notFound(req, res, payload, cb)
 
 function getLogs(req, res, payload, cb)
 {
-    fs.readFile('logs.json', (err, data)=>
+    fs.readFile('logs.log', (err, data)=>
     {
-        cb({ null,  data.toString()});
+        //cb({ null,  data.toString()});
     });
 }
 
@@ -257,9 +273,8 @@ function parseBodyJson(req, cb)
     }).on('end', function()
     {
         body = Buffer.concat(body).toString();
-
         let params = JSON.parse(body);
-
+        fs.appendFile('logs.log', `JSON: ${body}\n`);
         cb(null, params);
-    });
+});
 }
