@@ -55,7 +55,7 @@ const server = http.createServer((req, res) =>
             const handler = getHandler(req.url);
             fs.appendFile('logs.log',
                           `Время запроса: ${(new Date()).toDateString()}\n`+
-                          `URL: ${req.url}\n\n\n\n`);
+                          `URL: ${req.url}\n\n\n\n`, ()=>{});
 
             handler(req, res, payload, (err, result) =>
             {
@@ -98,34 +98,34 @@ function getHandler(url)
 
     function articleReadAll(req, res, payload, cb)
     {
-        payload.sortField = !payload.sortField? 'date': payload.sortField;
-        payload.sortOrder = !payload.sortOrder? 'desk': payload.sortOrder;
+        payload.sortField = !payload.sortField ? 'date' : payload.sortField;
+        payload.sortOrder = !payload.sortOrder ? 'desk' : payload.sortOrder;
 
         const articles = JSON.parse(ALL_ARTICLES);
-        articles.sort((a, b)=>
-                    {
-                        let mul = 1;
-                        payload.sortOrder === 'asc'? mul = -1: mul = 1;
+        articles.sort((a, b) =>
+                      {
+                          let mul = 1;
+                          payload.sortOrder === 'asc' ? mul = -1 : mul = 1;
 
-                        if(a[payload.sortField] > b[payload.sortField])
-                        {
-                            return mul;
-                        }
-                        else
-                        {
-                            return -mul;
-                        }
-                    });
+                          if (a[payload.sortField] < b[payload.sortField])
+                          {
+                              return mul;
+                          }
+                          else
+                          {
+                              return -mul;
+                          }
+                      });
 
-        payload.page = !payload.page? 1: payload.page;
-        payload.limit = !payload.limit? 10: payload.limit;
-        payload.includeDeps = !payload.includeDeps? false: payload.includeDeps;
+        payload.page = !payload.page ? 1 : payload.page;
+        payload.limit = !payload.limit ? 10 : payload.limit;
+        payload.includeDeps = !payload.includeDeps ? false : payload.includeDeps;
 
 
         const answer = [];
-        for(let i = (payload.limit - 1) * payload.page - 1; i<articles.length && i<payload.limit * payload.page;i++)
+        for (let i = (payload.limit) * (payload.page - 1); i < articles.length && i < payload.limit * payload.page; i++)
         {
-            articles[i].comments = !payload.includeDeps? undefined: articles[i].comments;
+            articles[i].comments = !payload.includeDeps ? undefined : articles[i].comments;
             answer.push(articles[i]);
         }
 
@@ -141,7 +141,7 @@ function getHandler(url)
     {
         const articles = JSON.parse(ALL_ARTICLES);
         console.log(articles);
-        cb(null, articles[payload.id]);
+        cb(null, articles[payload.id] || "not correct id");
     }
 
     function articleCreate(req, res, payload, cb)
@@ -195,39 +195,47 @@ function getHandler(url)
     function commentsCreate(req, res, payload, cb)
     {
         const articles = JSON.parse(ALL_ARTICLES);
+        let isTrue = false;
 
         for (let iter of articles)
         {
-            if (iter.id === payload.articleId)
+            if (iter.id === Number(payload.articleId))
             {
+                isTrue = true;
                 iter.comments.push(
-                    new Comment(iter.comments[iter.comments.length > 0 ? iter.comments.length - 1 : 0] + 1,
-                        payload.articleId,
+                    new Comment(!iter.comments.length? 0: Number(iter.comments[iter.comments.length - 1].id) + 1,
+                        Number(payload.articleId),
                         payload.text,
                         payload.author));
+                break
+
             }
         }
 
-        console.log("aa");
         ALL_ARTICLES = JSON.stringify(articles);
         fs.writeFile('articles.json', ALL_ARTICLES, () => {});
-        cb(null, "OK");
+        cb(null, isTrue? "OK" : "not correct id");
     }
 
     function commentsDelete(req, res, payload, cb)
     {
         const articles = JSON.parse(ALL_ARTICLES);
 
+        let isTrue = false;
         for (let iter of articles)
         {
-            if (iter.id === payload.articleId)
+            if (iter.id === Number(payload.articleId))
             {
                 let newComments = [];
                 for (subIter of iter.comments)
                 {
-                    if (subIter.id !== payload.id)
+                    if (subIter.id !== Number(payload.id))
                     {
                         newComments.push(subIter);
+                    }
+                    else
+                    {
+                        isTrue = true;
                     }
                 }
                 iter.comments = newComments;
@@ -236,7 +244,7 @@ function getHandler(url)
 
         ALL_ARTICLES = JSON.stringify(articles);
         fs.writeFile('articles.json', ALL_ARTICLES, () => {});
-        cb(null, "OK");
+        cb(null, isTrue? "OK": "not found comments with this id");
     }
 //catch (err)
 //{
